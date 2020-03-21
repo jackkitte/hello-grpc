@@ -6,8 +6,6 @@ import (
 	"os"
 	"time"
 
-	"google.golang.org/grpc/credentials"
-
 	pb "github.com/jackkitte/hello-grpc"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -17,12 +15,8 @@ import (
 
 func main() {
 	addr := "localhost:50051"
-	creds, err := credentials.NewClientTLSFromFile("server.crt", "")
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithUnaryInterceptor(unaryInterceptor))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -53,4 +47,11 @@ func main() {
 		}
 	}
 	log.Printf("Greeting: %s", r.Message)
+}
+
+func unaryInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	log.Printf("before call: %s, request: %+v", method, req)
+	err := invoker(ctx, method, req, reply, cc, opts...)
+	log.Printf("after call: %s, response: %+v", method, reply)
+	return err
 }
