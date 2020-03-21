@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/grpc/credentials"
+
 	pb "github.com/jackkitte/hello-grpc"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -15,7 +17,12 @@ import (
 
 func main() {
 	addr := "localhost:50051"
-	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	creds, err := credentials.NewClientTLSFromFile("server.crt", "")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	conn, err := grpc.Dial(addr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -27,10 +34,6 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	go func() {
-		time.Sleep(1 * time.Second)
-		cancel()
-	}()
 	md := metadata.Pairs("timestamp", time.Now().Format(time.Stamp))
 	ctx = metadata.NewOutgoingContext(ctx, md)
 	r, err := c.SayHello(ctx, &pb.HelloRequest{Name: name}, grpc.Trailer(&md))
