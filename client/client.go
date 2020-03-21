@@ -6,6 +6,8 @@ import (
 	"os"
 	"time"
 
+	"google.golang.org/grpc/resolver"
+
 	pb "github.com/jackkitte/hello-grpc"
 	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
@@ -14,9 +16,10 @@ import (
 )
 
 func main() {
-	addr := "localhost:50051"
+	resolver.Register(&exampleResolverBuilder{})
+	addr := "testScheme:///example"
 
-	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithUnaryInterceptor(unaryInterceptor))
+	conn, err := grpc.Dial(addr, grpc.WithInsecure(), grpc.WithBalancerName("round_robin"))
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
@@ -49,9 +52,36 @@ func main() {
 	log.Printf("Greeting: %s", r.Message)
 }
 
-func unaryInterceptor(ctx context.Context, method string, req, reply interface{}, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
-	log.Printf("before call: %s, request: %+v", method, req)
-	err := invoker(ctx, method, req, reply, cc, opts...)
-	log.Printf("after call: %s, response: %+v", method, reply)
-	return err
+type exampleResolverBuilder struct{}
+
+func (*exampleResolverBuilder) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+	r := &exampleResolver{
+		target: target,
+		cc:     cc,
+		addrsStore: map[string][]string{
+			"example": {"localhost:50051", "localhost:50052"},
+		},
+	}
+	r.start()
+	return r, nil
 }
+
+func (*exampleResolverBuilder) Scheme() string { return "testScheme" }
+
+type exampleResolver struct {
+	target     resolver.Target
+	cc         resolver.ClientConn
+	addrsStore map[string][]string
+}
+
+func (r *exampleResolver) start() {
+	addrStrs := r.addrsStore[r.target.Endpoint]
+	addrs := make([]resolver.Address, len(addrStrs))
+	for i, s := range addrStrs {
+		addrs[i] = resolver.Address{Addr: s}
+	}
+	r.cc.UpdateState(resolver.State{Addresses: addrs})
+}
+
+func (*exampleResolver) ResolveNow(o resolver.ResolveNowOptions) {}
+func (*exampleResolver) Close()                                  {}
