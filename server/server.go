@@ -4,26 +4,18 @@ import (
 	"context"
 	"log"
 	"net"
+	"time"
 
-	"github.com/golang/protobuf/ptypes/duration"
 	pb "github.com/jackkitte/hello-grpc"
-	"google.golang.org/genproto/googleapis/rpc/errdetails"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type server struct{}
 
 func (s *server) SayHello(ctx context.Context, in *pb.HelloRequest) (*pb.HelloReply, error) {
 	log.Printf("Received: %v", in.Name)
-	st, _ := status.New(codes.Aborted, "aborted").WithDetails(&errdetails.RetryInfo{
-		RetryDelay: &duration.Duration{
-			Seconds: 3,
-			Nanos:   0,
-		},
-	})
-	return nil, st.Err()
+	time.Sleep(3 * time.Second)
+	return &pb.HelloReply{Message: "Hello " + in.Name}, nil
 }
 
 func main() {
